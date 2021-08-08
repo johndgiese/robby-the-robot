@@ -153,7 +153,7 @@ def any_cans(state):
     return bool(sum(s == CAN for s in state))
 
 
-def default_strat_func(state):
+def default_strat(state):
     if can_in_middle(state):
         return ACTION_PICK_UP
     elif not any_cans(state):
@@ -170,6 +170,15 @@ def default_strat_func(state):
         raise Exception()
 
 
+def pick_up_groups_strat(state):
+    if state[MIDDLE] == CAN and state[LEFT] == CAN and state[RIGHT] == CAN:
+        return ACTION_LEFT
+    elif state[MIDDLE] == CAN and state[TOP] == CAN and state[BOTTOM] == CAN:
+        return ACTION_UP
+    else:
+        return default_strat(state)
+
+
 class Strategy:
     def __init__(self, actions):
         self.actions = actions
@@ -178,9 +187,9 @@ class Strategy:
         return self.actions[state]
 
     @staticmethod
-    def default_strat():
-        default_actions = {state: default_strat_func(state) for state in ALL_STATES}
-        return Strategy(default_actions)
+    def from_func(strat_func):
+        actions = {state: strat_func(state) for state in ALL_STATES}
+        return Strategy(actions)
 
 
 def test_create_world():
@@ -221,7 +230,7 @@ def test_create_world_can():
 
 
 def test_create_default_strat():
-    strat = Strategy.default_strat()
+    strat = Strategy.from_func(default_strat)
     assert len(strat.actions) == 3**5
     assert sum(a == ACTION_PICK_UP for a in strat.actions.values()) == 3**4
     assert sum(a == ACTION_RANDOM_MOVE for a in strat.actions.values()) == 2**5
@@ -231,7 +240,7 @@ def test_full_world():
     world_side = 10
     num_cans = world_side*world_side
     world = World(world_side, num_cans)
-    strat = Strategy.default_strat()
+    strat = Strategy.from_func(default_strat)
 
     assert world.num_cans_picked_up() == 0
     cans_picked_up = run_strategy(world, strat, 100000)
@@ -246,21 +255,33 @@ def run_tests():
     test_full_world()
 
 
-if __name__ == "__main__":
-    # run_tests()
-
-    num_runs = 10000
+def evaluate_strat(strat, num_cans):
+    num_runs = 1000=1i0
     num_time_steps = 150
-
-    strat = Strategy.default_strat()
 
     cans_picked_up = []
     for i in range(num_runs):
         world_side = 10
-        num_cans = 10
         world = World(world_side, num_cans)
         cans_picked_up_now = run_strategy(world, strat, num_time_steps)
         cans_picked_up.append(cans_picked_up_now)
+    return sum(cans_picked_up) / (num_cans*num_runs)
 
-    print(sum(cans_picked_up) / (num_cans*num_runs))
-    # expect .69
+
+def reproduce_69_with_default_strat():
+    strat = Strategy.from_func(default_strat)
+    percent_picked_up = evaluate_strat(strat, num_cans=10)
+    print(percent_picked_up)
+
+
+if __name__ == "__main__":
+    for num_cans in [10, 20, 30, 40, 50]:
+        print("num cans", num_cans)
+
+        strat = Strategy.from_func(default_strat)
+        percent_picked_up = evaluate_strat(strat, num_cans)
+        print("default strat", percent_picked_up)
+
+        strat = Strategy.from_func(pick_up_groups_strat)
+        percent_picked_up = evaluate_strat(strat, num_cans)
+        print("pick up groups strat", percent_picked_up)
