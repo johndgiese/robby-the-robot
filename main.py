@@ -69,6 +69,43 @@ class World:
         if self.state[row][col]:
             self.state[row][col] = False
 
+    def get_current_view(self):
+        row, col = self.robby
+        if col == 0:
+            left = WALL
+        else:
+            left = CAN if self.state[row][col - 1] else EMPTY
+
+        if col == (self.world_side - 1):
+            right = WALL
+        else:
+            right = CAN if self.state[row][col + 1] else EMPTY
+
+        if row == 0:
+            top = WALL
+        else:
+            top = CAN if self.state[row - 1][col] else EMPTY
+
+        if row == (self.world_side - 1):
+            bottom = WALL
+        else:
+            bottom = CAN if self.state[row + 1][col] else EMPTY
+
+        middle = CAN if self.state[row][col] else EMPTY
+        return (left, top, right, bottom, middle)
+
+    def num_cans_picked_up(self):
+        cans_left = sum(sum(is_can for is_can in row) for row in self.state)
+        return self.num_cans - cans_left
+
+
+def run_strategy(world, strat, num_steps):
+    for step in range(num_steps):
+        view = world.get_current_view()
+        action = strat(view)
+        world.respond_to_action(action)
+    return world.num_cans_picked_up()
+
 
 WALL = 0
 EMPTY = 1
@@ -159,8 +196,12 @@ def test_create_world_can():
     num_cans = 1
     world = World(world_side, num_cans)
     assert world.state[0][0]
+    assert world.num_cans_picked_up() == 0
+    assert world.get_current_view() == (WALL, WALL, WALL, WALL, CAN)
     world.respond_to_action(ACTION_PICK_UP)
     assert not world.state[0][0]
+    assert world.num_cans_picked_up() == 1
+    assert world.get_current_view() == (WALL, WALL, WALL, WALL, EMPTY)
 
 
 def test_create_default_strat():
