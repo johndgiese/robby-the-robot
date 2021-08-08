@@ -233,16 +233,34 @@ def test_full_world():
     world = World(world_side, num_cans)
     strat = Strategy.default_strat()
 
-    print(world)
     assert world.num_cans_picked_up() == 0
     cans_picked_up = run_strategy(world, strat, 100000)
     assert cans_picked_up == world_side**2
-    print(world)
 
 
-if __name__ == "__main__":
+def run_tests():
     test_create_world()    
     test_create_default_strat()    
     test_create_world_empty()
     test_create_world_can()
     test_full_world()
+
+
+if __name__ == "__main__":
+    # run_tests()
+
+    num_runs = 10000
+    num_time_steps = 150
+
+    strat = Strategy.default_strat()
+
+    cans_picked_up = []
+    for i in range(num_runs):
+        world_side = 10
+        num_cans = 10
+        world = World(world_side, num_cans)
+        cans_picked_up_now = run_strategy(world, strat, num_time_steps)
+        cans_picked_up.append(cans_picked_up_now)
+
+    print(sum(cans_picked_up) / (num_cans*num_runs))
+    # expect .69
