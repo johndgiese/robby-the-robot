@@ -5,6 +5,12 @@ import itertools
 class World:
     def __init__(self, world_side=10, num_cans=10):
         self.world_side = world_side
+        self.num_cans = num_cans
+
+        row = random.randint(0, world_side - 1)
+        col = random.randint(0, world_side - 1)
+        self.robby = (row, col)
+
         self.state = [
             [False for i in range(world_side)]
             for j in range(world_side)
@@ -19,6 +25,49 @@ class World:
 
         for (row, col) in can_indices:
             self.state[row][col] = True
+
+    def respond_to_action(self, action):
+        if action == ACTION_UP:
+            self.move_robby_up()
+        elif action == ACTION_DOWN:
+            self.move_robby_down()
+        elif action == ACTION_LEFT:
+            self.move_robby_left()
+        elif action == ACTION_RIGHT:
+            self.move_robby_right()
+        elif action == ACTION_RANDOM_MOVE:
+            self.move_robby_randomly()
+        elif action == ACTION_PICK_UP:
+            self.pick_up_can()
+        elif action == ACTION_NOTHING:
+            pass
+        else:
+            raise Exception()
+
+    def move_robby_up(self):
+        if self.robby[0] > 0:
+            self.robby[0] = self.robby[0] - 1
+
+    def move_robby_down(self):
+        if self.robby[0] < self.world_side - 1:
+            self.robby[0] = self.robby[0] + 1
+
+    def move_robby_left(self):
+        if self.robby[1] > 0:
+            self.robby[1] = self.robby[1] - 1
+
+    def move_robby_right(self):
+        if self.robby[1] < self.world_side - 1:
+            self.robby[1] = self.robby[1] + 1
+
+    def move_robby_randomly(self):
+        action = random.choice([ACTION_UP, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT])
+        self.respond_to_action(action)
+
+    def pick_up_can(self):
+        row, col = self.robby
+        if self.state[row][col]:
+            self.state[row][col] = False
 
 
 WALL = 0
@@ -90,6 +139,30 @@ def test_create_world():
     assert sum(sum(square for square in row) for row in world.state) == num_cans
 
 
+def test_create_world_empty():
+    world_side = 1
+    num_cans = 0
+    world = World(world_side, num_cans)
+    assert world.robby == (0, 0)
+    world.respond_to_action(ACTION_UP)
+    assert world.robby == (0, 0)
+    world.respond_to_action(ACTION_DOWN)
+    assert world.robby == (0, 0)
+    world.respond_to_action(ACTION_LEFT)
+    assert world.robby == (0, 0)
+    world.respond_to_action(ACTION_RIGHT)
+    assert world.robby == (0, 0)
+
+
+def test_create_world_can():
+    world_side = 1
+    num_cans = 1
+    world = World(world_side, num_cans)
+    assert world.state[0][0]
+    world.respond_to_action(ACTION_PICK_UP)
+    assert not world.state[0][0]
+
+
 def test_create_default_strat():
     strat = Strategy.default_strat()
     assert len(strat.actions) == 3**5
@@ -100,3 +173,5 @@ def test_create_default_strat():
 if __name__ == "__main__":
     test_create_world()    
     test_create_default_strat()    
+    test_create_world_empty()
+    test_create_world_can()
