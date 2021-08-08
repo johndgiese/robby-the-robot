@@ -1,5 +1,28 @@
 import random
+import copy
 import itertools
+import multiprocessing
+
+
+WALL = 0
+EMPTY = 1
+CAN = 2
+
+ACTION_UP = 0
+ACTION_DOWN = 1
+ACTION_LEFT = 2
+ACTION_RIGHT = 3
+ACTION_RANDOM_MOVE = 4
+ACTION_PICK_UP = 5
+ACTION_NOTHING = 6
+
+LEFT = 0
+TOP = 1
+RIGHT = 2
+BOTTOM = 3
+MIDDLE = 4
+
+ALL_STATES = list(itertools.product(range(3), range(3), range(3), range(3), range(3)))
 
 
 class World:
@@ -115,6 +138,34 @@ class World:
         return value
 
 
+class Strategy:
+    def __init__(self, actions):
+        self.actions = actions
+
+    def act(self, state):
+        return self.actions[state]
+
+    @staticmethod
+    def from_func(strat_func):
+        actions = {state: strat_func(state) for state in ALL_STATES}
+        return Strategy(actions)
+
+    def mutate(self, num_mutations=1):
+        mutated = Strategy(copy.deepcopy(self.actions))
+        for _ in range(num_mutations):
+            action_index = random.randint(0, len(ALL_STATES) - 1)
+            action_key = ALL_STATES[action_index]
+            mutated.actions[action_key] = random.choice([
+                ACTION_PICK_UP,
+                ACTION_RANDOM_MOVE,
+                ACTION_LEFT,
+                ACTION_UP,
+                ACTION_RIGHT,
+                ACTION_DOWN,
+            ])
+        return mutated
+
+
 def run_strategy(world, strat, num_steps):
     for step in range(num_steps):
         view = world.get_current_view()
@@ -123,26 +174,27 @@ def run_strategy(world, strat, num_steps):
     return world.num_cans_picked_up()
 
 
-WALL = 0
-EMPTY = 1
-CAN = 2
+def evolve_strategies(starting_strat, num_iterations):
+    num_strats = 100
+    strats = [starting_strat.mutate(i) for i in range(num_strats)]
 
-ACTION_UP = 0
-ACTION_DOWN = 1
-ACTION_LEFT = 2
-ACTION_RIGHT = 3
-ACTION_RANDOM_MOVE = 4
-ACTION_PICK_UP = 5
-ACTION_NOTHING = 6
+    pool = multiprocessing.Pool(8)
 
-LEFT = 0
-TOP = 1
-RIGHT = 2
-BOTTOM = 3
-MIDDLE = 4
+    for i in range(num_iterations):
+        scores = pool.map(evaluate_strat, strats)
+        strats_and_scores = list(zip(strats, scores))
+        get_score = lambda pair: pair[1]
+        strats_and_scores.sort(key=get_score, reverse=True)
 
-
-ALL_STATES = list(itertools.product(range(3), range(3), range(3), range(3), range(3)))
+        strats = []
+        num_keep_each_stage = 25
+        for strat, _ in strats_and_scores[:num_keep_each_stage]:
+            strats.append(strat)
+            strats.append(strat.mutate(1))
+            strats.append(strat.mutate(5))
+            strats.append(strat.mutate(10))
+        print(i, strats_and_scores[0][1])
+    return strats[0]
 
 
 def can_in_middle(state):
@@ -179,84 +231,8 @@ def pick_up_groups_strat(state):
         return default_strat(state)
 
 
-class Strategy:
-    def __init__(self, actions):
-        self.actions = actions
-
-    def act(self, state):
-        return self.actions[state]
-
-    @staticmethod
-    def from_func(strat_func):
-        actions = {state: strat_func(state) for state in ALL_STATES}
-        return Strategy(actions)
-
-
-def test_create_world():
-    world_side = 10
-    num_cans = 10
-    world = World(world_side, num_cans)
-    assert len(world.state) == world_side
-    assert len(world.state[0]) == world_side
-    assert sum(sum(square for square in row) for row in world.state) == num_cans
-
-
-def test_create_world_empty():
-    world_side = 1
-    num_cans = 0
-    world = World(world_side, num_cans)
-    assert world.robby == [0, 0]
-    world.respond_to_action(ACTION_UP)
-    assert world.robby == [0, 0]
-    world.respond_to_action(ACTION_DOWN)
-    assert world.robby == [0, 0]
-    world.respond_to_action(ACTION_LEFT)
-    assert world.robby == [0, 0]
-    world.respond_to_action(ACTION_RIGHT)
-    assert world.robby == [0, 0]
-
-
-def test_create_world_can():
-    world_side = 1
-    num_cans = 1
-    world = World(world_side, num_cans)
-    assert world.state[0][0]
-    assert world.num_cans_picked_up() == 0
-    assert world.get_current_view() == (WALL, WALL, WALL, WALL, CAN)
-    world.respond_to_action(ACTION_PICK_UP)
-    assert not world.state[0][0]
-    assert world.num_cans_picked_up() == 1
-    assert world.get_current_view() == (WALL, WALL, WALL, WALL, EMPTY)
-
-
-def test_create_default_strat():
-    strat = Strategy.from_func(default_strat)
-    assert len(strat.actions) == 3**5
-    assert sum(a == ACTION_PICK_UP for a in strat.actions.values()) == 3**4
-    assert sum(a == ACTION_RANDOM_MOVE for a in strat.actions.values()) == 2**5
-
-
-def test_full_world():
-    world_side = 10
-    num_cans = world_side*world_side
-    world = World(world_side, num_cans)
-    strat = Strategy.from_func(default_strat)
-
-    assert world.num_cans_picked_up() == 0
-    cans_picked_up = run_strategy(world, strat, 100000)
-    assert cans_picked_up == world_side**2
-
-
-def run_tests():
-    test_create_world()    
-    test_create_default_strat()    
-    test_create_world_empty()
-    test_create_world_can()
-    test_full_world()
-
-
-def evaluate_strat(strat, num_cans):
-    num_runs = 1000=1i0
+def evaluate_strat(strat, num_cans=10):
+    num_runs = 1000
     num_time_steps = 150
 
     cans_picked_up = []
@@ -268,13 +244,13 @@ def evaluate_strat(strat, num_cans):
     return sum(cans_picked_up) / (num_cans*num_runs)
 
 
-def reproduce_69_with_default_strat():
+def evaluate_default_strat():
     strat = Strategy.from_func(default_strat)
     percent_picked_up = evaluate_strat(strat, num_cans=10)
-    print(percent_picked_up)
+    print(percent_picked_up)  # matches 69% from the book!
 
 
-if __name__ == "__main__":
+def compare_default_and_group_strats():
     for num_cans in [10, 20, 30, 40, 50]:
         print("num cans", num_cans)
 
@@ -285,3 +261,9 @@ if __name__ == "__main__":
         strat = Strategy.from_func(pick_up_groups_strat)
         percent_picked_up = evaluate_strat(strat, num_cans)
         print("pick up groups strat", percent_picked_up)
+
+
+if __name__ == "__main__":
+    starting_strat = Strategy.from_func(default_strat)
+    num_iterations = 250
+    evolve_strategies(starting_strat, num_iterations)
