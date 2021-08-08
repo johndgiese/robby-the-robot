@@ -9,7 +9,7 @@ class World:
 
         row = random.randint(0, world_side - 1)
         col = random.randint(0, world_side - 1)
-        self.robby = (row, col)
+        self.robby = [row, col]
 
         self.state = [
             [False for i in range(world_side)]
@@ -98,11 +98,27 @@ class World:
         cans_left = sum(sum(is_can for is_can in row) for row in self.state)
         return self.num_cans - cans_left
 
+    def __str__(self):
+        value = ''
+        for i, row in enumerate(self.state):
+            for j, is_can in enumerate(row):
+                is_robby = self.robby == [i, j]
+                if is_can and is_robby:
+                    value += 'R'
+                elif is_can and not is_robby:
+                    value += 'c'
+                elif not is_can and is_robby:
+                    value += 'r'
+                else:
+                    value += '_'
+            value += '\n'
+        return value
+
 
 def run_strategy(world, strat, num_steps):
     for step in range(num_steps):
         view = world.get_current_view()
-        action = strat(view)
+        action = strat.act(view)
         world.respond_to_action(action)
     return world.num_cans_picked_up()
 
@@ -126,7 +142,7 @@ BOTTOM = 3
 MIDDLE = 4
 
 
-ALL_STATES = itertools.product(range(3), range(3), range(3), range(3), range(3))
+ALL_STATES = list(itertools.product(range(3), range(3), range(3), range(3), range(3)))
 
 
 def can_in_middle(state):
@@ -137,7 +153,7 @@ def any_cans(state):
     return bool(sum(s == CAN for s in state))
 
 
-def default_strat(state):
+def default_strat_func(state):
     if can_in_middle(state):
         return ACTION_PICK_UP
     elif not any_cans(state):
@@ -163,7 +179,7 @@ class Strategy:
 
     @staticmethod
     def default_strat():
-        default_actions = {state: default_strat(state) for state in ALL_STATES}
+        default_actions = {state: default_strat_func(state) for state in ALL_STATES}
         return Strategy(default_actions)
 
 
@@ -180,15 +196,15 @@ def test_create_world_empty():
     world_side = 1
     num_cans = 0
     world = World(world_side, num_cans)
-    assert world.robby == (0, 0)
+    assert world.robby == [0, 0]
     world.respond_to_action(ACTION_UP)
-    assert world.robby == (0, 0)
+    assert world.robby == [0, 0]
     world.respond_to_action(ACTION_DOWN)
-    assert world.robby == (0, 0)
+    assert world.robby == [0, 0]
     world.respond_to_action(ACTION_LEFT)
-    assert world.robby == (0, 0)
+    assert world.robby == [0, 0]
     world.respond_to_action(ACTION_RIGHT)
-    assert world.robby == (0, 0)
+    assert world.robby == [0, 0]
 
 
 def test_create_world_can():
@@ -211,8 +227,22 @@ def test_create_default_strat():
     assert sum(a == ACTION_RANDOM_MOVE for a in strat.actions.values()) == 2**5
 
 
+def test_full_world():
+    world_side = 10
+    num_cans = world_side*world_side
+    world = World(world_side, num_cans)
+    strat = Strategy.default_strat()
+
+    print(world)
+    assert world.num_cans_picked_up() == 0
+    cans_picked_up = run_strategy(world, strat, 100000)
+    assert cans_picked_up == world_side**2
+    print(world)
+
+
 if __name__ == "__main__":
     test_create_world()    
     test_create_default_strat()    
     test_create_world_empty()
     test_create_world_can()
+    test_full_world()
