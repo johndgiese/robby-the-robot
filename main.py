@@ -2,22 +2,23 @@ import random
 import itertools
 
 
-def create_world(world_side, num_cans):
-    world = [
-        [False for i in range(world_side)]
-        for j in range(world_side)
-    ]
+class World:
+    def __init__(self, world_side=10, num_cans=10):
+        self.world_side = world_side
+        self.state = [
+            [False for i in range(world_side)]
+            for j in range(world_side)
+        ]
 
-    can_indices = []
-    while len(can_indices) < num_cans:
-        row = random.randint(0, world_side - 1)
-        col = random.randint(0, world_side - 1)
-        if (row, col) not in can_indices:
-            can_indices.append((row, col))
+        can_indices = []
+        while len(can_indices) < num_cans:
+            row = random.randint(0, world_side - 1)
+            col = random.randint(0, world_side - 1)
+            if (row, col) not in can_indices:
+                can_indices.append((row, col))
 
-    for (row, col) in can_indices:
-        world[row][col] = True
-    return world
+        for (row, col) in can_indices:
+            self.state[row][col] = True
 
 
 WALL = 0
@@ -83,10 +84,10 @@ class Strategy:
 def test_create_world():
     world_side = 10
     num_cans = 10
-    world = create_world(world_side, num_cans)
-    assert len(world) == world_side
-    assert len(world[0]) == world_side
-    assert sum(sum(square for square in row) for row in world) == num_cans
+    world = World(world_side, num_cans)
+    assert len(world.state) == world_side
+    assert len(world.state[0]) == world_side
+    assert sum(sum(square for square in row) for row in world.state) == num_cans
 
 
 def test_create_default_strat():
