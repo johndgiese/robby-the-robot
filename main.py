@@ -50,6 +50,16 @@ class World:
         for (row, col) in can_indices:
             self.state[row][col] = True
 
+    def __deepcopy__(self, memo):
+        copy = World(self.world_side, 0)
+        copy.num_cans = self.num_cans
+        copy.robby = [self.robby[0], self.robby[1]]
+        copy.state = [
+            [self.state[i][j] for i in range(self.world_side)]
+            for j in range(self.world_side)
+        ]
+        return copy
+
     def respond_to_action(self, action):
         if action == ACTION_UP:
             self.move_robby_up()
@@ -174,7 +184,27 @@ class Strategy:
         return json.dumps(actions_jsonifiable, indent=4)
 
 
+class StrategyEvaluator:
+    def __init__(self, num_cans=10):
+        self.world_side = 10
+        self.num_cans = num_cans
+        self.num_time_steps = 150
+        self.num_runs = 500
+
+        # pre-generate all the worlds to avoid variability from the worlds
+        # themselves
+        self.worlds = [World(self.world_side, self.num_cans) for _ in range(self.num_runs)]
+
+    def evaluate(self, strat):
+        cans_picked_up = []
+        for world in self.worlds:
+            cans_picked_up_now = run_strategy(world, strat, self.num_time_steps)
+            cans_picked_up.append(cans_picked_up_now)
+        return sum(cans_picked_up) / (self.num_cans*self.num_runs)
+
+
 def run_strategy(world, strat, num_steps):
+    world = copy.deepcopy(world)
     for step in range(num_steps):
         view = world.get_current_view()
         action = strat.act(view)
@@ -183,21 +213,29 @@ def run_strategy(world, strat, num_steps):
 
 
 def evolve_strategies(starting_strat, num_iterations):
-    num_strats = 10
-    strats = [starting_strat.mutate(i) for i in range(num_strats)]
+    num_strats = 1000
+    strats = [starting_strat.mutate(10) for _ in range(num_strats)]
 
-    pool = multiprocessing.Pool(8)
+    pool = multiprocessing.Pool(4)
+    strat_evaluator = StrategyEvaluator()
 
     for i in range(num_iterations):
-        scores = pool.map(evaluate_strat, strats)
+        scores = pool.map(strat_evaluator.evaluate, strats)
         strats_and_scores = list(zip(strats, scores))
         get_score = lambda pair: pair[1]
         strats_and_scores.sort(key=get_score, reverse=True)
-        best_strat, best_score = strats_and_scores[0]
 
-        strats = [best_strat.mutate(i) for i in range(num_strats)]
+        strats = []
+        num_keep_each_stage = 10
+        for strat, _ in strats_and_scores[:num_keep_each_stage]:
+            strats.append(strat)
+            for _ in range(99):
+                strats.append(strat.mutate(10))
+        assert len(strats) == num_strats
+        best_strat, best_score = strats_and_scores[0]
         print(i, best_score)
-    return strats[0]
+
+    return best_strat
 
 
 def can_in_middle(state):
@@ -234,22 +272,10 @@ def pick_up_groups_strat(state):
         return default_strat(state)
 
 
-def evaluate_strat(strat, num_cans=10):
-    num_runs = 1000
-    num_time_steps = 150
-
-    cans_picked_up = []
-    for i in range(num_runs):
-        world_side = 10
-        world = World(world_side, num_cans)
-        cans_picked_up_now = run_strategy(world, strat, num_time_steps)
-        cans_picked_up.append(cans_picked_up_now)
-    return sum(cans_picked_up) / (num_cans*num_runs)
-
-
 def evaluate_default_strat():
     strat = Strategy.from_func(default_strat)
-    percent_picked_up = evaluate_strat(strat, num_cans=10)
+    strat_evaluator = StrategyEvaluator()
+    percent_picked_up = strat_evaluator.evaluate(strat, num_cans=10)
     print(percent_picked_up)  # matches 69% from the book!
 
 
@@ -258,16 +284,18 @@ def compare_default_and_group_strats():
         print("num cans", num_cans)
 
         strat = Strategy.from_func(default_strat)
-        percent_picked_up = evaluate_strat(strat, num_cans)
+
+        strat_evaluator = StrategyEvaluator(num_cans)
+        percent_picked_up = strat_evaluator.evaluate(strat)
         print("default strat", percent_picked_up)
 
         strat = Strategy.from_func(pick_up_groups_strat)
-        percent_picked_up = evaluate_strat(strat, num_cans)
+        percent_picked_up = strat_evaluator.evaluate(strat)
         print("pick up groups strat", percent_picked_up)
 
 
 if __name__ == "__main__":
     starting_strat = Strategy.from_func(default_strat)
-    num_iterations = 2500
+    num_iterations = 250
     winning_strat = evolve_strategies(starting_strat, num_iterations)
     print(winning_strat)
