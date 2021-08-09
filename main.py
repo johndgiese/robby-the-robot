@@ -2,6 +2,7 @@ import random
 import copy
 import itertools
 import multiprocessing
+import json
 
 
 WALL = 0
@@ -142,6 +143,9 @@ class Strategy:
     def __init__(self, actions):
         self.actions = actions
 
+    def __eq__(self, other):
+        return self.actions == other.actions
+
     def act(self, state):
         return self.actions[state]
 
@@ -164,6 +168,10 @@ class Strategy:
                 ACTION_DOWN,
             ])
         return mutated
+
+    def __repr__(self):
+        actions_jsonifiable = {str(k): v for k, v in self.actions.items()}
+        return json.dumps(actions_jsonifiable, indent=4)
 
 
 def run_strategy(world, strat, num_steps):
