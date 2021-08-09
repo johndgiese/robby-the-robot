@@ -183,7 +183,7 @@ def run_strategy(world, strat, num_steps):
 
 
 def evolve_strategies(starting_strat, num_iterations):
-    num_strats = 100
+    num_strats = 10
     strats = [starting_strat.mutate(i) for i in range(num_strats)]
 
     pool = multiprocessing.Pool(8)
@@ -193,15 +193,10 @@ def evolve_strategies(starting_strat, num_iterations):
         strats_and_scores = list(zip(strats, scores))
         get_score = lambda pair: pair[1]
         strats_and_scores.sort(key=get_score, reverse=True)
+        best_strat, best_score = strats_and_scores[0]
 
-        strats = []
-        num_keep_each_stage = 25
-        for strat, _ in strats_and_scores[:num_keep_each_stage]:
-            strats.append(strat)
-            strats.append(strat.mutate(1))
-            strats.append(strat.mutate(5))
-            strats.append(strat.mutate(10))
-        print(i, strats_and_scores[0][1])
+        strats = [best_strat.mutate(i) for i in range(num_strats)]
+        print(i, best_score)
     return strats[0]
 
 
@@ -273,5 +268,6 @@ def compare_default_and_group_strats():
 
 if __name__ == "__main__":
     starting_strat = Strategy.from_func(default_strat)
-    num_iterations = 250
-    evolve_strategies(starting_strat, num_iterations)
+    num_iterations = 2500
+    winning_strat = evolve_strategies(starting_strat, num_iterations)
+    print(winning_strat)
